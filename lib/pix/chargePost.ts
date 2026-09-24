@@ -1,4 +1,5 @@
 import { getAuthorization, baseUrl } from "./api";
+import { z } from "zod";
 
 const url = "api/v1/charge";
 
@@ -75,5 +76,5 @@ export const chargePost = async (
     return data as ChargePostResponse;
   }
 
-  return parsed.data as ChargePostResponse;
+  return parsed.data as unknown as ChargePostResponse;
 };

@@ -58,6 +58,7 @@ import {
   Boxes,
   FolderTree,
 } from 'lucide-react'
+import { AiChat } from '@/components/ai-chat'
 
 interface DashboardClientProps {
   store: Store | null
@@ -422,9 +423,25 @@ export function DashboardClient({
         </div>
       )}
 
-      {/* 3. Tabela Rápida: Últimos 5 Pedidos Recebidos */}
+      {/* Assistente de IA (Full Width) */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-semibold tracking-tight text-neutral-900 flex items-center gap-2">
+              <Sparkles className="size-4.5 text-indigo-500" />
+              Assistente Virtual
+            </h3>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Tire dúvidas e faça consultas sobre a sua loja
+            </p>
+          </div>
+        </div>
+        <AiChat />
+      </div>
+
+      {/* 3. Tabela Rápida: Últimos 5 Pedidos Recebidos */}
+      <div className="space-y-4">
+          <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold tracking-tight text-neutral-900 flex items-center gap-2">
               <ShoppingBag className="size-4.5 text-neutral-800" />

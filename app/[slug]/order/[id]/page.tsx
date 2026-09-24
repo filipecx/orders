@@ -35,7 +35,8 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
     notFound()
   }
 
-  order = await lazyCancelOrderIfStoreClosed(order)
+  order = await lazyCancelOrderIfStoreClosed(order as any) as any
+  if (!order || !order.store) return notFound()
 
-  return <OrderConfirmationClient order={order} store={order.store} />
+  return <OrderConfirmationClient order={order as any} store={order.store} />
 }
