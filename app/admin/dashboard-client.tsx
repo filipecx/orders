@@ -1,15 +1,15 @@
-'use client'
+"use client";
 
-import * as React from 'react'
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import * as React from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardContent,
-} from '@/components/ui/card'
+} from "@/components/ui/card";
 import {
   Table,
   TableHeader,
@@ -17,9 +17,9 @@ import {
   TableRow,
   TableHead,
   TableCell,
-} from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   formatCurrency,
   formatCustomerWhatsAppMessage,
@@ -30,13 +30,13 @@ import {
   type OrderWithItems,
   type OrderStatus,
   type DashboardMetrics,
-} from '@/lib/domain/orders'
+} from "@/lib/domain/orders";
 import {
   calculateDropStockSummary,
   formatDropStatus,
   type DropWithItems,
-} from '@/lib/domain/drops'
-import { type Store, getStoreWhatsAppTemplates } from '@/lib/domain/stores'
+} from "@/lib/domain/drops";
+import { type Store, getStoreWhatsAppTemplates } from "@/lib/domain/stores";
 import {
   DollarSign,
   Clock,
@@ -57,18 +57,18 @@ import {
   Store as StoreIcon,
   Boxes,
   FolderTree,
-} from 'lucide-react'
-import { AiChat } from '@/components/ai-chat'
+} from "lucide-react";
+import { AiChat } from "@/components/ai-chat";
 
 interface DashboardClientProps {
-  store: Store | null
-  activeDrop: DropWithItems | null
-  recentOrders: OrderWithItems[]
-  totalOrdersCount: number
+  store: Store | null;
+  activeDrop: DropWithItems | null;
+  recentOrders: OrderWithItems[];
+  totalOrdersCount: number;
   metrics: {
-    storeMetrics: DashboardMetrics
-    activeDropMetrics: DashboardMetrics | null
-  }
+    storeMetrics: DashboardMetrics;
+    activeDropMetrics: DashboardMetrics | null;
+  };
 }
 
 export function DashboardClient({
@@ -78,34 +78,34 @@ export function DashboardClient({
   totalOrdersCount,
   metrics,
 }: DashboardClientProps) {
-  const { storeMetrics, activeDropMetrics } = metrics
-  const displayMetrics = activeDropMetrics ?? storeMetrics
+  const { storeMetrics, activeDropMetrics } = metrics;
+  const displayMetrics = activeDropMetrics ?? storeMetrics;
 
   const storeTemplates = React.useMemo(
     () => getStoreWhatsAppTemplates(store),
-    [store]
-  )
+    [store],
+  );
 
   // Cronômetro para o Drop Ativo
   const [timeLeft, setTimeLeft] = useState<{
-    hours: number
-    minutes: number
-    seconds: number
-    progressPercent: number
-    isEnded: boolean
-  }>({ hours: 0, minutes: 0, seconds: 0, progressPercent: 0, isEnded: false })
+    hours: number;
+    minutes: number;
+    seconds: number;
+    progressPercent: number;
+    isEnded: boolean;
+  }>({ hours: 0, minutes: 0, seconds: 0, progressPercent: 0, isEnded: false });
 
   useEffect(() => {
-    if (!activeDrop || !activeDrop.ends_at) return
+    if (!activeDrop || !activeDrop.ends_at) return;
 
     const calculateTime = () => {
-      const now = new Date().getTime()
-      const end = new Date(activeDrop.ends_at!).getTime()
+      const now = new Date().getTime();
+      const end = new Date(activeDrop.ends_at!).getTime();
       const start = activeDrop.starts_at
         ? new Date(activeDrop.starts_at).getTime()
-        : end - 24 * 60 * 60 * 1000
+        : end - 24 * 60 * 60 * 1000;
 
-      const difference = end - now
+      const difference = end - now;
 
       if (difference <= 0) {
         setTimeLeft({
@@ -114,20 +114,20 @@ export function DashboardClient({
           seconds: 0,
           progressPercent: 100,
           isEnded: true,
-        })
-        return
+        });
+        return;
       }
 
-      const totalDuration = end - start
-      const elapsed = now - start
+      const totalDuration = end - start;
+      const elapsed = now - start;
       const progressPercent = Math.min(
         100,
-        Math.max(0, Math.round((elapsed / totalDuration) * 100))
-      )
+        Math.max(0, Math.round((elapsed / totalDuration) * 100)),
+      );
 
-      const hours = Math.floor(difference / (1000 * 60 * 60))
-      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60))
-      const seconds = Math.floor((difference % (1000 * 60)) / 1000)
+      const hours = Math.floor(difference / (1000 * 60 * 60));
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
 
       setTimeLeft({
         hours,
@@ -135,31 +135,31 @@ export function DashboardClient({
         seconds,
         progressPercent,
         isEnded: false,
-      })
-    }
+      });
+    };
 
-    calculateTime()
-    const interval = setInterval(calculateTime, 1000)
-    return () => clearInterval(interval)
-  }, [activeDrop])
+    calculateTime();
+    const interval = setInterval(calculateTime, 1000);
+    return () => clearInterval(interval);
+  }, [activeDrop]);
 
   const dropStock = activeDrop
     ? calculateDropStockSummary(activeDrop.items)
-    : null
+    : null;
 
   const formatDate = (dateString: string) => {
     try {
-      const date = new Date(dateString)
-      return new Intl.DateTimeFormat('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(date)
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date);
     } catch {
-      return dateString
+      return dateString;
     }
-  }
+  };
 
   return (
     <div className="space-y-8">
@@ -176,7 +176,9 @@ export function DashboardClient({
                   Você ainda não criou sua loja
                 </h2>
                 <p className="text-xs text-neutral-500 max-w-lg">
-                  Configure o nome, WhatsApp e dados da sua marca para começar a lançar pré-vendas e receber pedidos diretamente no WhatsApp com PIX.
+                  Configure o nome, WhatsApp e dados da sua marca para começar a
+                  lançar pré-vendas e receber pedidos diretamente no WhatsApp
+                  com PIX.
                 </p>
               </div>
             </div>
@@ -196,7 +198,7 @@ export function DashboardClient({
         <div className="p-5 space-y-3 bg-white rounded-xl border border-neutral-200/80 shadow-xs hover:border-neutral-300 transition-colors">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
-              {activeDrop ? 'Faturamento da Pré-venda' : 'Faturamento Total'}
+              {activeDrop ? "Faturamento da Pré-venda" : "Faturamento Total"}
             </span>
             <div className="size-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
               <DollarSign className="size-4.5" />
@@ -208,8 +210,8 @@ export function DashboardClient({
             </div>
             <p className="text-[11px] text-neutral-500">
               {activeDrop
-                ? 'Em pedidos confirmados/pagos desta pré-venda'
-                : 'Total acumulado em pedidos confirmados'}
+                ? "Em pedidos confirmados/pagos desta pré-venda"
+                : "Total acumulado em pedidos confirmados"}
             </p>
           </div>
         </div>
@@ -331,13 +333,12 @@ export function DashboardClient({
                   </span>
                   <span className="font-mono text-neutral-900 font-semibold tabular-nums">
                     {timeLeft.isEnded
-                      ? 'Encerrada'
-                      : `${String(timeLeft.hours).padStart(2, '0')}h ${String(
-                          timeLeft.minutes
-                        ).padStart(2, '0')}m ${String(timeLeft.seconds).padStart(
-                          2,
-                          '0'
-                        )}s`}
+                      ? "Encerrada"
+                      : `${String(timeLeft.hours).padStart(2, "0")}h ${String(
+                          timeLeft.minutes,
+                        ).padStart(2, "0")}m ${String(
+                          timeLeft.seconds,
+                        ).padStart(2, "0")}s`}
                   </span>
                 </div>
 
@@ -351,10 +352,16 @@ export function DashboardClient({
 
                 <div className="flex justify-between text-[11px] text-neutral-500">
                   <span>
-                    Início: {activeDrop.starts_at ? formatDate(activeDrop.starts_at) : 'Imediato'}
+                    Início:{" "}
+                    {activeDrop.starts_at
+                      ? formatDate(activeDrop.starts_at)
+                      : "Imediato"}
                   </span>
                   <span>
-                    Fim: {activeDrop.ends_at ? formatDate(activeDrop.ends_at) : 'Indefinido'}
+                    Fim:{" "}
+                    {activeDrop.ends_at
+                      ? formatDate(activeDrop.ends_at)
+                      : "Indefinido"}
                   </span>
                 </div>
               </div>
@@ -382,7 +389,8 @@ export function DashboardClient({
 
                   <div className="flex justify-between text-[11px] text-neutral-500">
                     <span className="tabular-nums">
-                      {dropStock.totalSold} de {dropStock.totalAllocated} itens vendidos
+                      {dropStock.totalSold} de {dropStock.totalAllocated} itens
+                      vendidos
                     </span>
                     <span className="font-medium text-neutral-800 tabular-nums">
                       {dropStock.totalRemaining} unidades restantes
@@ -406,8 +414,8 @@ export function DashboardClient({
                   Nenhuma Pré-venda ativa no momento
                 </h3>
                 <p className="text-xs text-neutral-500">
-                  Crie um novo evento de pré-venda gastronômica para ativar contagem
-                  regressiva e estoque exclusivo.
+                  Crie um novo evento de pré-venda gastronômica para ativar
+                  contagem regressiva e estoque exclusivo.
                 </p>
               </div>
             </div>
@@ -436,12 +444,12 @@ export function DashboardClient({
             </p>
           </div>
         </div>
-        <AiChat />
+        {/*<AiChat /> */}
       </div>
 
       {/* 3. Tabela Rápida: Últimos 5 Pedidos Recebidos */}
       <div className="space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold tracking-tight text-neutral-900 flex items-center gap-2">
               <ShoppingBag className="size-4.5 text-neutral-800" />
@@ -479,34 +487,51 @@ export function DashboardClient({
             <Table>
               <TableHeader>
                 <TableRow className="border-neutral-200/80 hover:bg-transparent">
-                  <TableHead className="w-20 text-neutral-500 text-xs font-medium">Pedido</TableHead>
-                  <TableHead className="text-neutral-500 text-xs font-medium">Data</TableHead>
-                  <TableHead className="text-neutral-500 text-xs font-medium">Cliente</TableHead>
-                  <TableHead className="text-neutral-500 text-xs font-medium">Entrega</TableHead>
-                  <TableHead className="text-neutral-500 text-xs font-medium">Total</TableHead>
-                  <TableHead className="text-neutral-500 text-xs font-medium">Status</TableHead>
-                  <TableHead className="text-right text-neutral-500 text-xs font-medium">Ação</TableHead>
+                  <TableHead className="w-20 text-neutral-500 text-xs font-medium">
+                    Pedido
+                  </TableHead>
+                  <TableHead className="text-neutral-500 text-xs font-medium">
+                    Data
+                  </TableHead>
+                  <TableHead className="text-neutral-500 text-xs font-medium">
+                    Cliente
+                  </TableHead>
+                  <TableHead className="text-neutral-500 text-xs font-medium">
+                    Entrega
+                  </TableHead>
+                  <TableHead className="text-neutral-500 text-xs font-medium">
+                    Total
+                  </TableHead>
+                  <TableHead className="text-neutral-500 text-xs font-medium">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-right text-neutral-500 text-xs font-medium">
+                    Ação
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {recentOrders.map((order) => {
                   const statusInfo =
                     ORDER_STATUS_BADGE_VARIANTS[order.status as OrderStatus] ||
-                    ORDER_STATUS_BADGE_VARIANTS.pending
+                    ORDER_STATUS_BADGE_VARIANTS.pending;
                   const statusLabel =
                     ORDER_STATUS_LABELS[order.status as OrderStatus] ||
-                    order.status
+                    order.status;
                   const whatsAppLink = formatWhatsAppLink(
                     order.customer_phone,
                     formatCustomerWhatsAppMessage(
                       order,
-                      store?.name ?? 'AppDrops',
-                      storeTemplates.status_update
-                    )
-                  )
+                      store?.name ?? "AppDrops",
+                      storeTemplates.status_update,
+                    ),
+                  );
 
                   return (
-                    <TableRow key={order.id} className="border-neutral-200/80 hover:bg-neutral-50/80">
+                    <TableRow
+                      key={order.id}
+                      className="border-neutral-200/80 hover:bg-neutral-50/80"
+                    >
                       <TableCell className="font-semibold text-neutral-900">
                         <span className="font-mono text-xs bg-neutral-100 text-neutral-700 px-2 py-0.5 rounded border border-neutral-200">
                           #{order.order_number}
@@ -524,12 +549,14 @@ export function DashboardClient({
                           className="text-[11px] text-neutral-500 flex items-center gap-1"
                         >
                           <Phone className="size-3" />
-                          <span suppressHydrationWarning>{order.customer_phone}</span>
+                          <span suppressHydrationWarning>
+                            {order.customer_phone}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="text-xs text-neutral-600">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 border border-neutral-200 text-neutral-700">
-                          {order.delivery_type === 'delivery' ? (
+                          {order.delivery_type === "delivery" ? (
                             <>
                               <Truck className="size-3" />
                               🚚 Entrega
@@ -573,7 +600,7 @@ export function DashboardClient({
                         </div>
                       </TableCell>
                     </TableRow>
-                  )
+                  );
                 })}
               </TableBody>
             </Table>
@@ -655,14 +682,12 @@ export function DashboardClient({
               <div className="font-semibold text-sm text-neutral-900">
                 Categorias
               </div>
-              <div className="text-xs text-neutral-500">
-                Organizar catálogo
-              </div>
+              <div className="text-xs text-neutral-500">Organizar catálogo</div>
             </div>
           </div>
           <ArrowRight className="size-4 text-neutral-400 group-hover:text-neutral-900 group-hover:translate-x-0.5 transition-all" />
         </Link>
       </div>
     </div>
-  )
+  );
 }
