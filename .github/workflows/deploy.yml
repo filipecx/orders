@@ -65,6 +65,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
       # 7. Conecta na EC2 via SSH e atualiza o app sem reiniciar o Redis!    
       - name: Deploy Automatico na EC2 via SSH
+        if: github.ref == 'refs/heads/main'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
