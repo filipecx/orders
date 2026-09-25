@@ -1,0 +1,65 @@
+name: CI/CD - Testes e Push para AWS ECR
+
+on:
+  push:
+    branches: ["dev", "main"]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    #1. sobre um container temporário do redis dentro do github actions para rodar os testes
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci 
+      #2. Roda os tetes automatizados
+      #Se qualquer teste falhar, a esteira cancela o processo e nada sobre para a aws
+      - name: Executar testes automatizados
+        env:
+          REDIS_URL redis://:localhost:6379
+          NEXT_PUBLIC_SUPABASE_URL: https://mock-supabase.supabase.co 
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: mock-anon-key 
+        run: npm test 
+      #3. Autentica na aws usando as chaves seguras do github
+      - name: Configurar Credenciais
+        uses: aws-actions/configure-aws-credentials@v4 
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      #4. Faz o login no seu registro ECR
+      - name: Login no ECR 
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      #5. Compila a imagem docker de 83mb usando 16gb de ram do github e envia para aws
+      - name: Build e push da imagem pra ECR 
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: orders-app #tem que ser igual ao nome criado no ecr
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
