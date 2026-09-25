@@ -36,7 +36,7 @@ jobs:
       #Se qualquer teste falhar, a esteira cancela o processo e nada sobre para a aws
       - name: Executar testes automatizados
         env:
-          REDIS_URL "redis://localhost:6379"
+          REDIS_URL: "redis://localhost:6379"
           NEXT_PUBLIC_SUPABASE_URL: "https://mock-supabase.supabase.co "
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "mock-anon-key" 
         run: npm test 
