@@ -39,6 +39,11 @@ export async function saveProductAction(
       product = await createProduct(data)
     }
 
+    const store = await getStoreByOwner()
+    if (store?.slug) {
+      await invalidateStorefrontCache(store.slug)
+    }
+
     revalidatePath('/admin/products')
     revalidatePath('/admin/drops')
 
@@ -62,6 +67,8 @@ export async function saveProductAction(
 }
 
 import { z } from 'zod'
+import { invalidateStorefrontCache } from '@/lib/db/storefront'
+import { getStoreByOwner } from '@/lib/db/stores'
 
 const toggleProductStatusSchema = z.object({
   productId: z.string().uuid('ID de produto inválido.'),

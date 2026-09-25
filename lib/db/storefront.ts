@@ -5,6 +5,7 @@ import type { ProductWithCategory } from '@/lib/domain/products'
 import type { Category } from '@/lib/domain/categories'
 import type { ComboWithRules } from '@/lib/domain/combos'
 import type { Faq } from '@/lib/domain/faqs'
+import { redis } from '../adapters/redis'
 
 export type StorefrontData = {
   store: Store
@@ -28,6 +29,19 @@ export type StorefrontData = {
 export async function getStoreWithActiveDrop(
   slug: string
 ): Promise<StorefrontData | null> {
+  const cacheKey = `v1:storefront:${slug}`
+  //tenta ler o redis
+  try {
+    const cachedData = await redis.get(cacheKey)
+    if (cachedData) {
+      //cache hit, retorna os dados pelo redis
+      return JSON.parse(cachedData) as StorefrontData
+    }
+  } catch (error) {
+    console.warn('[Redis cache] Falha ao ler cache, buscando do supabase: ', error)
+  }
+
+  //cache miss, tem que fazer query no supabase mesmo
   const supabase = await createClient()
 
   // 1. Buscar a Loja ativa
@@ -128,6 +142,7 @@ export async function getStoreWithActiveDrop(
     }
   }
 
+
   const now = Date.now()
   const allDrops = (dropsRes.data as unknown as DropWithItems[]) ?? []
   // Filtra apenas as que não expiraram (ends_at >= agora ou sem ends_at)
@@ -159,7 +174,7 @@ export async function getStoreWithActiveDrop(
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   })
 
-  return {
+  const storefrontData: StorefrontData = {
     store: {
       ...store,
       owner_id: '',
@@ -174,5 +189,26 @@ export async function getStoreWithActiveDrop(
     catalogProducts: (productsRes.data as unknown as ProductWithCategory[]) ?? [],
     combos: sortedCombos,
     faqs: (faqsRes.data as unknown as Faq[]) ?? [],
+  }
+
+  //salvar no redis em 10min
+  try {
+    await redis.setex(cacheKey, 600, JSON.stringify(storefrontData))
+  } catch(error) {
+    console.warn('[Redis Cache] falha ao gravar cache no redis: ', error)
+  }
+
+  return storefrontData
+  
+}
+
+export async function invalidateStorefrontCache(slug: string) {
+  const cacheKey = `v1:storefront:${slug}`
+
+  try {
+    await redis.del(cacheKey)
+    console.log(`[Redis cache] cache invalidado para loja: ${slug}`)
+  }catch (error) {
+    console.error(`[Redis Cache] Impossível invalidar cache para loja: ${slug}`)
   }
 }
