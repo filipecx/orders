@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  //usa só os arquivos necessários pra reduzir a imagem
+  output: 'standalone',
   // Permite conexões de recursos de desenvolvimento do Next.js via celular / IP local
   allowedDevOrigins: [
     '192.168.0.142',
