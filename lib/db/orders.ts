@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getStoreByOwner } from "@/lib/db/stores";
-import type { Json } from "@/types/database.types";
+import type { Database, Json } from "@/types/database.types";
 import type {
   CheckoutFormInput,
   Order,
@@ -224,29 +224,7 @@ export async function createOrder(input: CheckoutFormInput): Promise<Order> {
   }
 
   // 4. Inserir o Pedido com novos campos de produção e agendamento
-  const insertPayload: {
-    store_id: string;
-    drop_id: string | null;
-    order_number?: number;
-    customer_name: string;
-    customer_phone: string;
-    customer_email: string | null;
-    delivery_type: "delivery" | "pickup" | "dine_in";
-    delivery_method: string;
-    delivery_address: Json;
-    scheduled_date: string | null;
-    scheduled_time_slot: string | null;
-    production_status: ProductionStatus;
-    subtotal: number;
-    delivery_fee: number;
-    discount: number;
-    total: number;
-    payment_method: PaymentMethod;
-    payment_status: PaymentStatus;
-    status: OrderStatus;
-    idempotency_key: string | null;
-    notes: string | null;
-  } = {
+  const insertPayload: Database["public"]["Tables"]["orders"]["Insert"] = {
     store_id: input.store_id,
     drop_id: input.drop_id ?? null,
     customer_name: input.customer_name,
@@ -290,7 +268,7 @@ export async function createOrder(input: CheckoutFormInput): Promise<Order> {
     console.warn(
       "[lib/db/orders.ts] Conflito em unique_store_order_number detectado. Re-tentando via trigger do Postgres sem order_number pré-definido..."
     );
-    const retryPayload = { ...insertPayload };
+    const retryPayload: Database["public"]["Tables"]["orders"]["Insert"] = { ...insertPayload };
     delete retryPayload.order_number;
 
     const retryResult = await supabase

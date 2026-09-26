@@ -405,7 +405,7 @@ export type Database = {
           idempotency_key?: string | null
           metadata?: Json | null
           notes?: string | null
-          order_number: number
+          order_number?: number
           payment_method: Database["public"]["Enums"]["payment_method"]
           payment_status?: Database["public"]["Enums"]["payment_status"]
           production_status?: string | null
