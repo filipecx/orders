@@ -3,6 +3,9 @@ name: CI/CD - Testes e Push para AWS ECR
 on:
   push:
     branches: ["dev", "main"]
+    paths-ignore: 
+      - "*.md"
+      - ".gitignore"
 
 jobs:
   test-and-build:
