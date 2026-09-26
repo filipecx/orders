@@ -632,6 +632,10 @@ export type Database = {
         Args: { p_store_id: string }
         Returns: number
       }
+      get_order_by_idempotency_key: {
+        Args: { p_store_id: string; p_idempotency_key: string }
+        Returns: Json
+      }
       get_order_by_id_public: {
         Args: { p_order_id: string }
         Returns: Json

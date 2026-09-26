@@ -6,6 +6,7 @@ import type {
   Order,
   OrderStatus,
   OrderWithItems,
+  PaymentMethod,
   PaymentStatus,
   ProductionStatus,
 } from "@/lib/domain/orders";
@@ -21,15 +22,30 @@ export async function createOrder(input: CheckoutFormInput): Promise<Order> {
 
   // 0. Idempotência preventiva: se idempotency_key for fornecida, retorna o pedido existente
   if (input.idempotency_key) {
-    const { data: existingOrder } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("store_id", input.store_id)
-      .eq("idempotency_key", input.idempotency_key)
-      .maybeSingle();
+    try {
+      const { data: existingOrder } = await supabase.rpc(
+        "get_order_by_idempotency_key",
+        {
+          p_store_id: input.store_id,
+          p_idempotency_key: input.idempotency_key,
+        }
+      );
 
-    if (existingOrder) {
-      return existingOrder;
+      if (existingOrder) {
+        return existingOrder as unknown as Order;
+      }
+    } catch {
+      // Fallback para lojista autenticado caso RPC ainda não esteja disponível
+      const { data: existingOrder } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("store_id", input.store_id)
+        .eq("idempotency_key", input.idempotency_key)
+        .maybeSingle();
+
+      if (existingOrder) {
+        return existingOrder;
+      }
     }
   }
 
@@ -174,77 +190,145 @@ export async function createOrder(input: CheckoutFormInput): Promise<Order> {
   const deliveryFee = 0;
   const total = subtotal;
 
-  // 3. Obter próximo order_number atômico via RPC (fallback para MAX + 1)
-  let nextOrderNumber = 1001;
-  const { data: rpcOrderNum, error: rpcOrderError } = await supabase.rpc(
-    "next_order_number",
-    { p_store_id: input.store_id }
-  );
-
-    if (!rpcOrderError && rpcOrderNum) {
-      nextOrderNumber = rpcOrderNum;
-    } else {
-      // Fallback caso a migration ainda não tenha rodado
-      const { data: lastOrder } = await supabase
-        .from("orders")
-        .select("order_number")
-        .eq("store_id", input.store_id)
-        .order("order_number", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      nextOrderNumber = Math.max(1000, lastOrder?.order_number ?? 1000) + 1;
-    }
-
   // Normalização do método de entrega
   const deliveryMethod =
     input.delivery_method ??
     (input.delivery_type === "pickup" ? "pickup" : "delivery");
 
+  // 3. Obter próximo order_number atômico via RPC (sem forçar fallback estático de 1001)
+  // NOTA CRÍTICA: Nunca forçamos order_number = 1001 se a RPC falhar ou retornar null.
+  // Se a RPC retornar um número válido (> 1000), enviamos o número.
+  // Se falhar ou não retornar, NÃO incluímos order_number no payload de inserção:
+  // o PostgreSQL aciona o trigger BEFORE INSERT ('trigger_set_order_number'), que executa
+  // com SECURITY DEFINER e busca o MAX(order_number) real na tabela orders, contornando bloqueios de RLS.
+  let nextOrderNumber: number | undefined;
+  try {
+    const { data: rpcOrderNum, error: rpcOrderError } = await supabase.rpc(
+      "next_order_number",
+      { p_store_id: input.store_id }
+    );
+
+    if (!rpcOrderError && typeof rpcOrderNum === "number" && rpcOrderNum > 1000) {
+      nextOrderNumber = rpcOrderNum;
+    } else if (rpcOrderError) {
+      console.warn(
+        "[lib/db/orders.ts] RPC next_order_number retornou erro, delegando para o trigger do Postgres:",
+        rpcOrderError
+      );
+    }
+  } catch (err) {
+    console.warn(
+      "[lib/db/orders.ts] Falha de comunicação com next_order_number RPC, delegando para trigger:",
+      err
+    );
+  }
+
   // 4. Inserir o Pedido com novos campos de produção e agendamento
-  const { data: order, error: orderError } = await supabase
+  const insertPayload: {
+    store_id: string;
+    drop_id: string | null;
+    order_number?: number;
+    customer_name: string;
+    customer_phone: string;
+    customer_email: string | null;
+    delivery_type: "delivery" | "pickup" | "dine_in";
+    delivery_method: string;
+    delivery_address: Json;
+    scheduled_date: string | null;
+    scheduled_time_slot: string | null;
+    production_status: ProductionStatus;
+    subtotal: number;
+    delivery_fee: number;
+    discount: number;
+    total: number;
+    payment_method: PaymentMethod;
+    payment_status: PaymentStatus;
+    status: OrderStatus;
+    idempotency_key: string | null;
+    notes: string | null;
+  } = {
+    store_id: input.store_id,
+    drop_id: input.drop_id ?? null,
+    customer_name: input.customer_name,
+    customer_phone: input.customer_phone,
+    customer_email:
+      input.customer_email && input.customer_email.length > 0
+        ? input.customer_email
+        : null,
+    delivery_type: input.delivery_type,
+    delivery_method: deliveryMethod,
+    delivery_address: (input.delivery_address as Json) ?? null,
+    scheduled_date: input.scheduled_date ?? null,
+    scheduled_time_slot: input.scheduled_time_slot ?? null,
+    production_status: initialProductionStatus,
+    subtotal,
+    delivery_fee: deliveryFee,
+    discount: 0,
+    total,
+    payment_method: input.payment_method,
+    payment_status: "pending",
+    status: initialStatus,
+    idempotency_key: input.idempotency_key ?? null,
+    notes: input.notes ?? null,
+  };
+
+  if (nextOrderNumber) {
+    insertPayload.order_number = nextOrderNumber;
+  }
+
+  let { data: order, error: orderError } = await supabase
     .from("orders")
-    .insert({
-      store_id: input.store_id,
-      drop_id: input.drop_id ?? null,
-      order_number: nextOrderNumber,
-      customer_name: input.customer_name,
-      customer_phone: input.customer_phone,
-      customer_email:
-        input.customer_email && input.customer_email.length > 0
-          ? input.customer_email
-          : null,
-      delivery_type: input.delivery_type,
-      delivery_method: deliveryMethod,
-      delivery_address: input.delivery_address ?? null,
-      scheduled_date: input.scheduled_date ?? null,
-      scheduled_time_slot: input.scheduled_time_slot ?? null,
-      production_status: initialProductionStatus,
-      subtotal,
-      delivery_fee: deliveryFee,
-      discount: 0,
-      total,
-      payment_method: input.payment_method,
-      payment_status: "pending",
-      status: initialStatus,
-      idempotency_key: input.idempotency_key ?? null,
-      notes: input.notes ?? null,
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
-  if (orderError || !order) {
-    // Se colidir em concorrência simultânea (Unique Violation no Postgres)
-    if (orderError?.code === "23505" && input.idempotency_key) {
-      const { data: raceOrder } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("store_id", input.store_id)
-        .eq("idempotency_key", input.idempotency_key)
-        .maybeSingle();
+  // Auto-recuperação: Se colidir na restrição unique_store_order_number (ex: RPC com contador defasado antes de migração)
+  if (
+    orderError?.code === "23505" &&
+    orderError.message?.includes("unique_store_order_number")
+  ) {
+    console.warn(
+      "[lib/db/orders.ts] Conflito em unique_store_order_number detectado. Re-tentando via trigger do Postgres sem order_number pré-definido..."
+    );
+    const retryPayload = { ...insertPayload };
+    delete retryPayload.order_number;
 
-      if (raceOrder) {
-        return raceOrder;
+    const retryResult = await supabase
+      .from("orders")
+      .insert(retryPayload)
+      .select()
+      .single();
+
+    order = retryResult.data;
+    orderError = retryResult.error;
+  }
+
+  if (orderError || !order) {
+    // Se colidir em concorrência simultânea por chave de idempotência
+    if (orderError?.code === "23505" && input.idempotency_key) {
+      try {
+        const { data: raceOrder } = await supabase.rpc(
+          "get_order_by_idempotency_key",
+          {
+            p_store_id: input.store_id,
+            p_idempotency_key: input.idempotency_key,
+          }
+        );
+
+        if (raceOrder) {
+          return raceOrder as unknown as Order;
+        }
+      } catch {
+        const { data: directRaceOrder } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("store_id", input.store_id)
+          .eq("idempotency_key", input.idempotency_key)
+          .maybeSingle();
+
+        if (directRaceOrder) {
+          return directRaceOrder;
+        }
       }
     }
 

@@ -100,27 +100,83 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Função para gerar número sequencial amigável do pedido por loja (#1001, #1002...)
+-- Função atômica e segura para geração de order_number sequencial por loja (#1001, #1002...)
+CREATE OR REPLACE FUNCTION next_order_number(p_store_id UUID)
+RETURNS INTEGER AS $$
+DECLARE
+    v_current_max INTEGER;
+    v_next INTEGER;
+BEGIN
+    SELECT GREATEST(
+        COALESCE((settings->>'last_order_number')::int, 1000),
+        COALESCE((SELECT MAX(order_number) FROM orders WHERE store_id = p_store_id), 1000)
+    )
+    INTO v_current_max
+    FROM stores
+    WHERE id = p_store_id
+    FOR UPDATE;
+
+    IF v_current_max IS NULL THEN
+        v_current_max := 1000;
+    END IF;
+
+    v_next := v_current_max + 1;
+
+    UPDATE stores
+    SET settings = jsonb_set(
+        COALESCE(settings, '{}'::jsonb),
+        '{last_order_number}',
+        to_jsonb(v_next)
+    )
+    WHERE id = p_store_id;
+
+    RETURN v_next;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+GRANT EXECUTE ON FUNCTION next_order_number(UUID) TO anon, authenticated, service_role;
+
+-- Função trigger para definir número do pedido sequencial caso não seja informado
 CREATE OR REPLACE FUNCTION set_store_order_number()
 RETURNS TRIGGER 
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-DECLARE
-    next_num INTEGER;
 BEGIN
     IF NEW.order_number IS NULL THEN
-        SELECT COALESCE(MAX(order_number), 1000) + 1
-        INTO next_num
-        FROM orders
-        WHERE store_id = NEW.store_id;
-
-        NEW.order_number = next_num;
+        NEW.order_number := next_order_number(NEW.store_id);
     END IF;
     RETURN NEW;
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION set_store_order_number() TO anon, authenticated, service_role;
+
+-- Função segura para consulta de pedido por idempotency_key
+CREATE OR REPLACE FUNCTION get_order_by_idempotency_key(
+    p_store_id UUID,
+    p_idempotency_key UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_order JSONB;
+BEGIN
+    SELECT to_jsonb(o)
+    INTO v_order
+    FROM orders o
+    WHERE o.store_id = p_store_id
+      AND o.idempotency_key = p_idempotency_key;
+
+    RETURN v_order;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_order_by_idempotency_key(UUID, UUID) TO anon, authenticated, service_role;
 
 -- Função para abater estoque de item em Drop com segurança atômica (concorrência)
 CREATE OR REPLACE FUNCTION deduct_drop_item_stock(
